@@ -1,8 +1,10 @@
 import numpy as np
+import datetime as dt
 from sqlalchemy.ext.automap import automap_base
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine, func
 from flask import Flask, jsonify
+
 
 #################################################
 # Database Setup
@@ -49,7 +51,7 @@ def precipitation():
     """Return a list of all Precipitation Data"""
 # Query all Precipitation
     results = session.query(measurement.date, measurement.prcp).\
-        filter(measurement.date >= "2016-08-24").\
+        filter(measurement.date >= "2016-08-23").\
         all()
 
     session.close()
@@ -92,7 +94,7 @@ def tobs():
 
     """Return a list of all TOBS"""
     # Query TOBS
-    results = session.query(measurement.date,  measurement.tobs,measurement.prcp).\
+    results = session.query(measurement.date, measurement.tobs, measurement.prcp).\
                 filter(measurement.date >= '2016-08-23').\
                 filter(measurement.station=='USC00519281').\
                 order_by(measurement.date).all()
@@ -110,3 +112,72 @@ def tobs():
         all_tobs.append(tobs_dict)
 
     return jsonify(all_tobs)
+
+##Setting up the start date routes for first half of calculations  
+@app.route("/api/v1.0/<start_date>")
+def start_date(start_date):
+    # Create our session (link) from Python to the DB
+    session = Session(engine)
+
+    #set up sel 
+    sel = [func.min(measurement.tobs), 
+            func.avg(measurement.tobs), 
+            func.max(measurement.tobs)]
+
+    #convert enteries into proper date formatting
+    start_date_dt = dt.datetime.strptime(start_date, '%Y-%m-%d')
+
+    """Return a list of min, avg and max tobs for a start date"""
+    # Query all tobs
+    results = session.query(*sel).\
+                filter(measurement.date >= start_date_dt).all()
+
+    session.close()
+
+    # Create a dictionary from the row data and append to a list of start_date_tobs
+    start_date_tobs = []
+    for min, avg, max in results:
+        start_date_tobs_dict = {}
+        start_date_tobs_dict["Minimum Temperature"] = min
+        start_date_tobs_dict["Average Temperature"] = avg
+        start_date_tobs_dict["Maximum Temperature"] = max
+        start_date_tobs.append(start_date_tobs_dict) 
+    
+    return jsonify(start_date_tobs)
+
+@app.route("/api/v1.0/<start_date>/<end_date>")
+def all_dates(start_date, end_date):
+    # Create our session (link) from Python to the DB
+    session = Session(engine)
+
+    #set up sel 
+    sel = [func.min(measurement.tobs), 
+            func.avg(measurement.tobs), 
+            func.max(measurement.tobs)]
+
+    #convert enteries into proper date formatting
+    start_date_dt = dt.datetime.strptime(start_date, '%Y-%m-%d')
+    end_date_dt = dt.datetime.strptime(end_date, "%Y-%m-%d")
+
+    """Return a list of min, avg and max tobs for start and end dates"""
+    # Query all tobs
+
+    results = session.query(*sel).\
+                filter(measurement.date >= start_date).filter(measurement.date <= end_date).all()
+
+    session.close()
+  
+    # Create a dictionary from the row data and append to a list of start_end_date_tobs
+    alldates_tobs = []
+    for min, avg, max in results:
+        alldates_tobs_dict = {}
+        alldates_tobs_dict["Minimum Temperature"] = min
+        alldates_tobs_dict["Average Temperature"] = avg
+        alldates_tobs_dict["Maximum Temperature"] = max
+        alldates_tobs.append(alldates_tobs_dict) 
+    
+
+    return jsonify(alldates_tobs)
+
+if __name__ == "__main__":
+    app.run(debug=True)
